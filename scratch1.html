@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farewell Message</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700;900&family=Shippori+Mincho:wght@500;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['"Shippori Mincho"', 'serif'],
+            signature: ['"Noto Serif JP"', 'serif'],
+          },
+          colors: {
+            paper: '#fffcf9',
+            mist: '#f3e7e9',
+            ink: '#4a4a4a',
+            gold: '#b89f5d',
+          },
+          animation: {
+            float: 'float 3s ease-in-out infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)', opacity: '0.9' },
+              '50%': { transform: 'translateY(-10px)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom utility for non-Tailwind specific needs */
+    body {
+      touch-action: none;
+      /* Prevent scrolling on mobile while scratching */
+    }
+  </style>
+</head>
+
+<body class="m-0 h-screen w-screen overflow-hidden bg-gradient-to-br from-paper to-mist select-none">
+
+  <div id="container" class="relative w-full h-full">
+
+    <!-- 感謝メッセージ (Hidden under scratch layer visuals, revealed by scratching) -->
+    <!-- z-10 for message so it is below the canvas (z-20) visually if canvas is opaque, 
+         but logic relies on canvas being ON TOP to be scratched. 
+         Wait, original had message z:1, canvas z:2. Correct. -->
+    <div id="message" class="absolute inset-0 flex flex-col items-center justify-center text-center p-6 z-10">
+      <div class="text-ink font-serif tracking-widest leading-loose md:text-3xl text-xl space-y-6">
+        <p>このたびは、温かいお餞別をいただき、<br>心より御礼申し上げます。</p>
+        <p>これまで多くのことを学ばせていただき、<br>本当に感謝しております。</p>
+        <p class="hidden md:block">新天地でも、この経験を活かして<br>精一杯頑張ります。</p>
+        <p class="md:hidden">新天地でも、この経験を活かして<br>精一杯頑張ります。</p>
+        <p>皆さんと過ごした時間は、<br><span class="text-gold font-bold">これからも大切な財産です。</span></p>
+      </div>
+    </div>
+
+    <!-- 操作ヒント -->
+    <div id="hint" class="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-float">
+      <span class="text-white text-2xl font-serif tracking-[0.3em] font-bold drop-shadow-md">
+        なぞってください
+      </span>
+    </div>
+
+    <!-- イニシャル署名 -->
+    <!-- Requested: More prominent, solid font -->
+    <div id="signature"
+      class="absolute right-6 bottom-6 md:right-10 md:bottom-10 z-40 pointer-events-none transition-colors duration-700 text-white/90">
+      <div class="font-signature font-black text-3xl md:text-5xl tracking-widest drop-shadow-lg">
+        by T.K
+      </div>
+    </div>
+
+    <!-- Canvas Layers -->
+    <!-- Cover Canvas (The gray scratch layer) -->
+    <canvas id="cover" class="absolute inset-0 z-20 cursor-crosshair touch-none"></canvas>
+
+    <!-- FX Canvas (Sparkles) -->
+    <canvas id="fx" class="absolute inset-0 z-50 pointer-events-none"></canvas>
+
+  </div>
+
+  <script>
+    const canvas = document.getElementById("cover");
+    const ctx = canvas.getContext("2d");
+    const fxCanvas = document.getElementById("fx");
+    const fxCtx = fxCanvas.getContext("2d");
+    const hint = document.getElementById("hint");
+    const signature = document.getElementById("signature");
+
+    let isDrawing = false;
+    let hintHidden = false;
+    let particles = [];
+    let isInitialized = false;
+
+    function resize() {
+      // Save current state
+      let tempCanvas;
+      if (isInitialized && canvas.width > 0 && canvas.height > 0) {
+        tempCanvas = document.createElement("canvas");
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        tempCanvas.getContext("2d").drawImage(canvas, 0, 0);
+      }
+
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      fxCanvas.width = window.innerWidth;
+      fxCanvas.height = window.innerHeight;
+
+      if (tempCanvas) {
+        // Restore state
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+      } else {
+        // First load
+        ctx.globalCompositeOperation = "source-over";
+        // Dark elegant cover color
+        ctx.fillStyle = "#2d3748"; // Tailwind gray-800
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        isInitialized = true;
+      }
+
+      ctx.globalCompositeOperation = "destination-out";
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    /* Particle System */
+    class Particle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 3 + 1;
+        this.speedX = Math.random() * 2 - 1;
+        this.speedY = Math.random() * 2 - 1;
+        this.life = 1.0;
+        this.color = `hsl(${Math.random() * 50 + 40}, 90%, 60%)`; // Gold
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.life -= 0.02;
+        this.size *= 0.95;
+      }
+      draw(context) {
+        context.globalCompositeOperation = "source-over";
+        context.fillStyle = this.color;
+        context.globalAlpha = this.life;
+        context.beginPath();
+        context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        context.fill();
+        context.globalAlpha = 1.0;
+      }
+    }
+
+    function handleParticles() {
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update();
+        particles[i].draw(fxCtx);
+        if (particles[i].life <= 0) {
+          particles.splice(i, 1);
+          i--;
+        }
+      }
+      requestAnimationFrame(handleParticles);
+    }
+    handleParticles();
+
+    function spawnParticles(x, y) {
+      for (let i = 0; i < 4; i++) {
+        particles.push(new Particle(x, y));
+      }
+    }
+
+    function erase(x, y) {
+      if (!hintHidden) {
+        hint.style.display = "none";
+        // Change signature color to blend with the revealed background message style
+        signature.classList.remove("text-white/90", "drop-shadow-lg");
+        signature.classList.add("text-ink/80"); // Match text color roughly
+        hintHidden = true;
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, 60, 0, Math.PI * 2);
+      ctx.fill();
+
+      spawnParticles(x, y);
+    }
+
+    /* Mouse & Touch Events */
+    canvas.addEventListener("mousedown", e => {
+      isDrawing = true;
+      erase(e.clientX, e.clientY);
+    });
+    canvas.addEventListener("mousemove", e => {
+      if (!isDrawing) return;
+      erase(e.clientX, e.clientY);
+    });
+    canvas.addEventListener("mouseup", () => isDrawing = false);
+    canvas.addEventListener("mouseleave", () => isDrawing = false);
+
+    canvas.addEventListener("touchstart", e => {
+      isDrawing = true;
+      const t = e.touches[0];
+      erase(t.clientX, t.clientY);
+    });
+    canvas.addEventListener("touchmove", e => {
+      if (!isDrawing) return;
+      const t = e.touches[0];
+      erase(t.clientX, t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener("touchend", () => isDrawing = false);
+  </script>
+
+</body>
+
+</html>
